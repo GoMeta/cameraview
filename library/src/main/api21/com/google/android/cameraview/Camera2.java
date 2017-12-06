@@ -594,11 +594,16 @@ class Camera2 extends CameraViewImpl {
         SortedSet<Size> candidates = mPreviewSizes.sizes(mAspectRatio);
 
         // Pick the smallest of those big enough
+        Timber.d("selecting preview size from %d candidates for %d x %d", candidates.size(),
+                surfaceLonger, surfaceShorter);
         for (Size size : candidates) {
+            Timber.d("    Testing %s", size.toString());
             if (size.getWidth() >= surfaceLonger && size.getHeight() >= surfaceShorter) {
+                Timber.d("    DONE");
                 return size;
             }
         }
+        Timber.d("    Defaulting to %s", candidates.last());
         // If no size is big enough, pick the largest one.
         return candidates.last();
     }
@@ -759,15 +764,28 @@ class Camera2 extends CameraViewImpl {
         }
     }
 
+    private boolean hasPrintedFrameInfo = false;
     private byte[] convertYUV420888ToNV21(Image imgYUV420) {
         // Converting YUV_420_888 data to NV21.
+        final boolean GRAYSCALE_DETECTOR = true;
+
         int width = imgYUV420.getWidth();
         int height = imgYUV420.getHeight();
 
         Image.Plane[] planes = imgYUV420.getPlanes();
-        byte[] result = new byte[width * height * 3 / 2];
+        int resultSize = width * height;
+        if (!GRAYSCALE_DETECTOR) {
+            resultSize = resultSize * 3 / 2;
+        }
+        byte[] result = new byte[resultSize];
 
         int stride = planes[0].getRowStride();
+        if (!hasPrintedFrameInfo) {
+            Timber.d("size? %d x %d, preview? %d x %d, stride? %d, cropRect? %s", width,
+                    imgYUV420.getHeight(), mPreview.getWidth(), mPreview.getHeight(), stride,
+                    imgYUV420.getCropRect().toString());
+            hasPrintedFrameInfo = true;
+        }
         if (stride == width) {
             planes[0].getBuffer().get(result, 0, width);
         } else {
@@ -777,22 +795,18 @@ class Camera2 extends CameraViewImpl {
             }
         }
 
-        stride = planes[1].getRowStride();
-        byte[] rowBytesCb = new byte[width/2];
-        byte[] rowBytesCr = new byte[width/2];
-
-        for (int row = 0; row < height/2; row++) {
-            int rowOffset = width*height + width/2 * row;
-            planes[1].getBuffer().position(row*stride);
-            planes[1].getBuffer().get(rowBytesCb, 0, width/2);
-            planes[2].getBuffer().position(row*stride);
-            planes[2].getBuffer().get(rowBytesCr, 0, width/2);
-
-            for (int col = 0; col < width/2; col++) {
-                result[rowOffset + col*2] = rowBytesCr[col];
-                result[rowOffset + col*2 + 1] = rowBytesCb[col];
+        if (!GRAYSCALE_DETECTOR) {
+            stride = planes[1].getRowStride();
+            for (int row = 0; row < height/2; row++) {
+                int rowOffset = width*height + width/2 * row;
+                int planeOffset = row * stride;
+                for (int col = 0; col < width/2; col++) {
+                    result[rowOffset + col*2] = planes[2].getBuffer().get(planeOffset + col);
+                    result[rowOffset + col*2 + 1] = planes[1].getBuffer().get(planeOffset + col);
+                }
             }
         }
+
         return result;
     }
 

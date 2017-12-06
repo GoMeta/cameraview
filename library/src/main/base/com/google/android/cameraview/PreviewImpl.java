@@ -20,6 +20,8 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.View;
 
+import timber.log.Timber;
+
 
 /**
  * Encapsulates all the operations related to camera preview in a backward-compatible manner.
@@ -66,6 +68,7 @@ abstract class PreviewImpl {
     }
 
     void setSize(int width, int height) {
+        Timber.d("setSize(%d, %d)", width, height);
         mWidth = width;
         mHeight = height;
     }

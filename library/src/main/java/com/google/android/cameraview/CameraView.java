@@ -38,6 +38,8 @@ import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.Set;
 
+import timber.log.Timber;
+
 public class CameraView extends FrameLayout {
 
     /** The camera device faces the opposite direction as the device's screen. */
