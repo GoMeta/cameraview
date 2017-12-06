@@ -31,7 +31,6 @@ android {
     }
     sourceSets {
         main.java.srcDirs += 'src/main/base'
-        main.java.srcDirs += 'src/main/api9'
         main.java.srcDirs += 'src/main/api14'
         main.java.srcDirs += 'src/main/api21'
         main.java.srcDirs += 'src/main/api23'
@@ -41,6 +40,8 @@ android {
 dependencies {
     compile "com.android.support:support-annotations:$supportLibraryVersion"
     compile "com.android.support:support-v4:$supportLibraryVersion"
+    compile 'com.google.android.gms:play-services-vision:11.6.2'
+    compile 'com.jakewharton.timber:timber:4.6.0'
 
     // Tests
     testCompile 'junit:junit:4.12'

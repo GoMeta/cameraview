@@ -17,17 +17,27 @@
 package com.google.android.cameraview;
 
 import android.annotation.SuppressLint;
+import android.graphics.ImageFormat;
 import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
 import android.os.Build;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.v4.util.SparseArrayCompat;
 import android.view.SurfaceHolder;
 
+import com.google.android.gms.vision.Detector;
+
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import timber.log.Timber;
 
 
 @SuppressWarnings("deprecation")
@@ -71,6 +81,20 @@ class Camera1 extends CameraViewImpl {
 
     private int mDisplayOrientation;
 
+    private FrameProcessingRunnable mFrameProcessingRunnable = null;
+    private FrameProcessingThread mFrameProcessingThread = null;
+    private final Map<byte[], ByteBuffer> mBytesToByteBuffer = new HashMap<>();
+
+    private final FrameProcessingRunnable.OnFrameDataReleasedListener mOnFrameDataReleasedListener =
+            new FrameProcessingRunnable.OnFrameDataReleasedListener() {
+                @Override
+                public void onFrameDataReleased(ByteBuffer data) {
+                    if (mCamera != null) {
+                        mCamera.addCallbackBuffer(data.array());
+                    }
+                }
+            };
+
     Camera1(Callback callback, PreviewImpl preview) {
         super(callback, preview);
         preview.setCallback(new PreviewImpl.Callback() {
@@ -79,6 +103,9 @@ class Camera1 extends CameraViewImpl {
                 if (mCamera != null) {
                     setUpPreview();
                     adjustCameraParameters();
+                    if (mFrameProcessingThread != null) {
+                        mCamera.setPreviewCallbackWithBuffer(mFrameProcessingThread);
+                    }
                 }
             }
         });
@@ -91,6 +118,13 @@ class Camera1 extends CameraViewImpl {
         if (mPreview.isReady()) {
             setUpPreview();
         }
+        if (mFrameProcessingRunnable != null) {
+            Timber.d("Creating frame processing thread");
+            mFrameProcessingThread = new FrameProcessingThread(mFrameProcessingRunnable);
+            mFrameProcessingRunnable.setActive(true);
+            mFrameProcessingThread.start();
+            mCamera.setPreviewCallbackWithBuffer(mFrameProcessingThread);
+        }
         mShowingPreview = true;
         mCamera.startPreview();
         return true;
@@ -101,6 +135,20 @@ class Camera1 extends CameraViewImpl {
         if (mCamera != null) {
             mCamera.stopPreview();
         }
+        Timber.d("Stopping camera");
+        if (mFrameProcessingRunnable != null) {
+            mFrameProcessingRunnable.setActive(false);
+            mCamera.setPreviewCallbackWithBuffer(null);
+        }
+        if (mFrameProcessingThread != null) {
+            try {
+                mFrameProcessingThread.join();
+            } catch (InterruptedException e) {
+                Timber.d("Frame processing thread interrupted on release");
+            }
+            mFrameProcessingThread = null;
+        }
+        mBytesToByteBuffer.clear();
         mShowingPreview = false;
         releaseCamera();
     }
@@ -110,7 +158,7 @@ class Camera1 extends CameraViewImpl {
     void setUpPreview() {
         try {
             if (mPreview.getOutputClass() == SurfaceHolder.class) {
-                final boolean needsToStopPreview = mShowingPreview && Build.VERSION.SDK_INT < 14;
+                final boolean needsToStopPreview = mShowingPreview;
                 if (needsToStopPreview) {
                     mCamera.stopPreview();
                 }
@@ -259,7 +307,7 @@ class Camera1 extends CameraViewImpl {
         if (isCameraOpened()) {
             mCameraParameters.setRotation(calcCameraRotation(displayOrientation));
             mCamera.setParameters(mCameraParameters);
-            final boolean needsToStopPreview = mShowingPreview && Build.VERSION.SDK_INT < 14;
+            final boolean needsToStopPreview = mShowingPreview;
             if (needsToStopPreview) {
                 mCamera.stopPreview();
             }
@@ -267,6 +315,25 @@ class Camera1 extends CameraViewImpl {
             if (needsToStopPreview) {
                 mCamera.startPreview();
             }
+        }
+    }
+
+    @Override
+    void setDetector(@Nullable Detector detector) {
+        boolean requireCameraRestart = false;
+        if (isCameraOpened()) {
+            // Requires a restart of the camera
+            requireCameraRestart = true;
+            stop();
+        }
+        if (detector == null) {
+            mFrameProcessingRunnable = null;
+        } else {
+            mFrameProcessingRunnable = new FrameProcessingRunnable(detector,
+                    mOnFrameDataReleasedListener);
+        }
+        if (requireCameraRestart) {
+            start();
         }
     }
 
@@ -334,9 +401,19 @@ class Camera1 extends CameraViewImpl {
         if (mShowingPreview) {
             mCamera.stopPreview();
         }
+        int rotationAngle = calcCameraRotation(mDisplayOrientation);
+        if (mFrameProcessingRunnable != null) {
+            mFrameProcessingRunnable.setPreviewSpecs(size.getWidth(), size.getHeight(),
+                    rotationAngle / 90);
+            mBytesToByteBuffer.clear();
+            mCamera.addCallbackBuffer(createPreviewBuffer(size));
+            mCamera.addCallbackBuffer(createPreviewBuffer(size));
+            mCamera.addCallbackBuffer(createPreviewBuffer(size));
+            mCamera.addCallbackBuffer(createPreviewBuffer(size));
+        }
         mCameraParameters.setPreviewSize(size.getWidth(), size.getHeight());
         mCameraParameters.setPictureSize(pictureSize.getWidth(), pictureSize.getHeight());
-        mCameraParameters.setRotation(calcCameraRotation(mDisplayOrientation));
+        mCameraParameters.setRotation(rotationAngle);
         setAutoFocusInternal(mAutoFocus);
         setFlashInternal(mFlash);
         mCamera.setParameters(mCameraParameters);
@@ -474,6 +551,52 @@ class Camera1 extends CameraViewImpl {
         } else {
             mFlash = flash;
             return false;
+        }
+    }
+
+    //==============================================================================================
+    // Frame processing
+    //==============================================================================================
+
+    private byte[] createPreviewBuffer(Size previewSize) {
+        int bitsPerPixel = ImageFormat.getBitsPerPixel(ImageFormat.NV21);
+        long sizeInBits = previewSize.getHeight() * previewSize.getWidth() * bitsPerPixel;
+        int bufferSize = (int) Math.ceil(sizeInBits / 8.0d) + 1;
+
+        //
+        // NOTICE: This code only works when using play services v. 8.1 or higher.
+        //
+
+        // Creating the byte array this way and wrapping it, as opposed to using .allocate(),
+        // should guarantee that there will be an array to work with.
+        byte[] byteArray = new byte[bufferSize];
+        ByteBuffer buffer = ByteBuffer.wrap(byteArray);
+        if (!buffer.hasArray() || (buffer.array() != byteArray)) {
+            // I don't think that this will ever happen.  But if it does, then we wouldn't be
+            // passing the preview content to the underlying detector later.
+            throw new IllegalStateException("Failed to create valid buffer for camera source.");
+        }
+
+        mBytesToByteBuffer.put(byteArray, buffer);
+        return byteArray;
+    }
+
+    private class FrameProcessingThread extends Thread implements Camera.PreviewCallback {
+
+        private final FrameProcessingRunnable mFrameProcessingRunnable;
+
+        FrameProcessingThread(@NonNull FrameProcessingRunnable runnable) {
+            super(runnable);
+            mFrameProcessingRunnable = runnable;
+        }
+
+        @Override
+        public void onPreviewFrame(byte[] data, Camera camera) {
+            ByteBuffer evictedFrame = mFrameProcessingRunnable
+                    .setNextFrame(mBytesToByteBuffer.get(data));
+            if (evictedFrame != null) {
+                camera.addCallbackBuffer(evictedFrame.array());
+            }
         }
     }
 

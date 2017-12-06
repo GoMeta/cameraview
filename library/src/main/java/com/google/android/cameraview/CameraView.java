@@ -31,6 +31,8 @@ import android.support.v4.view.ViewCompat;
 import android.util.AttributeSet;
 import android.widget.FrameLayout;
 
+import com.google.android.gms.vision.Detector;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
@@ -129,13 +131,7 @@ public class CameraView extends FrameLayout {
 
     @NonNull
     private PreviewImpl createPreviewImpl(Context context) {
-        PreviewImpl preview;
-        if (Build.VERSION.SDK_INT < 14) {
-            preview = new SurfaceViewPreview(context, this);
-        } else {
-            preview = new TextureViewPreview(context, this);
-        }
-        return preview;
+        return new TextureViewPreview(context, this);
     }
 
     @Override
@@ -405,6 +401,15 @@ public class CameraView extends FrameLayout {
      */
     public void takePicture() {
         mImpl.takePicture();
+    }
+
+    /**
+     * Set a detector to be used with this CameraView.
+     *
+     * @param detector The detector to use for each frame.
+     */
+    public void setDetector(@Nullable Detector detector) {
+        mImpl.setDetector(detector);
     }
 
     private class CallbackBridge implements CameraViewImpl.Callback {

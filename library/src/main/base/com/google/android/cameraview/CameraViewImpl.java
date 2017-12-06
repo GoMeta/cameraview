@@ -16,7 +16,10 @@
 
 package com.google.android.cameraview;
 
+import android.support.annotation.Nullable;
 import android.view.View;
+
+import com.google.android.gms.vision.Detector;
 
 import java.util.Set;
 
@@ -68,6 +71,8 @@ abstract class CameraViewImpl {
     abstract void takePicture();
 
     abstract void setDisplayOrientation(int displayOrientation);
+
+    abstract void setDetector(@Nullable Detector detector);
 
     interface Callback {
 

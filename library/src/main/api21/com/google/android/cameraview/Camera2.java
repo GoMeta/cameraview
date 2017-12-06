@@ -30,15 +30,24 @@ import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
+import android.os.Handler;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.util.Log;
 import android.util.SparseIntArray;
 import android.view.Surface;
 
+import com.google.android.gms.vision.Detector;
+import com.google.android.gms.vision.Frame;
+
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.SortedSet;
+
+import timber.log.Timber;
 
 @SuppressWarnings("MissingPermission")
 @TargetApi(21)
@@ -181,6 +190,7 @@ class Camera2 extends CameraViewImpl {
     CaptureRequest.Builder mPreviewRequestBuilder;
 
     private ImageReader mImageReader;
+    private ImageReader mDetectorImageReader;
 
     private final SizeMap mPreviewSizes = new SizeMap();
 
@@ -195,6 +205,12 @@ class Camera2 extends CameraViewImpl {
     private int mFlash;
 
     private int mDisplayOrientation;
+
+    private Thread mBackgroundThread = null;
+    private Handler mBackgroundHandler = null;
+
+    private FrameProcessingRunnable mFrameProcessingRunnable = null;
+    private Thread mFrameProcessingThread = null;
 
     Camera2(Callback callback, PreviewImpl preview, Context context) {
         super(callback, preview);
@@ -220,6 +236,17 @@ class Camera2 extends CameraViewImpl {
 
     @Override
     void stop() {
+        if (mFrameProcessingRunnable != null) {
+            mFrameProcessingRunnable.setActive(false);
+        }
+        if (mFrameProcessingThread != null) {
+            try {
+                mFrameProcessingThread.join();
+            } catch (InterruptedException e) {
+                Timber.d("Frame processing thread interrupted on release");
+            }
+            mFrameProcessingThread = null;
+        }
         if (mCaptureSession != null) {
             mCaptureSession.close();
             mCaptureSession = null;
@@ -231,6 +258,10 @@ class Camera2 extends CameraViewImpl {
         if (mImageReader != null) {
             mImageReader.close();
             mImageReader = null;
+        }
+        if (mDetectorImageReader != null) {
+            mDetectorImageReader.close();
+            mDetectorImageReader = null;
         }
     }
 
@@ -347,6 +378,40 @@ class Camera2 extends CameraViewImpl {
         mPreview.setDisplayOrientation(mDisplayOrientation);
     }
 
+    @Override
+    void setDetector(@Nullable Detector detector) {
+        if (detector != null) {
+            mFrameProcessingRunnable = new FrameProcessingRunnable(detector,
+                    mOnFrameDataReleasedListener);
+            if (mDetectorImageReader != null && mPreviewRequestBuilder != null) {
+                mPreviewRequestBuilder.addTarget(mDetectorImageReader.getSurface());
+                if (mCaptureSession != null) {
+                    try {
+                        mCaptureSession.setRepeatingRequest(mPreviewRequestBuilder.build(),
+                                mCaptureCallback, null);
+                    } catch (CameraAccessException e) {
+                        // Revert
+                        mPreviewRequestBuilder.removeTarget(mDetectorImageReader.getSurface());
+                    }
+                }
+            }
+        } else {
+            mFrameProcessingRunnable = null;
+            if (mDetectorImageReader != null && mPreviewRequestBuilder != null) {
+                mPreviewRequestBuilder.removeTarget(mDetectorImageReader.getSurface());
+                if (mCaptureSession != null) {
+                    try {
+                        mCaptureSession.setRepeatingRequest(mPreviewRequestBuilder.build(),
+                                mCaptureCallback, null);
+                    } catch (CameraAccessException e) {
+                        // Revert
+                        mPreviewRequestBuilder.addTarget(mDetectorImageReader.getSurface());
+                    }
+                }
+            }
+        }
+    }
+
     /**
      * <p>Chooses a camera ID by the specified camera facing ({@link #mFacing}).</p>
      * <p>This rewrites {@link #mCameraId}, {@link #mCameraCharacteristics}, and optionally
@@ -458,6 +523,11 @@ class Camera2 extends CameraViewImpl {
      * <p>The result will be processed in {@link #mCameraDeviceCallback}.</p>
      */
     private void startOpeningCamera() {
+        if (mFrameProcessingRunnable != null) {
+            mFrameProcessingThread = new Thread(mFrameProcessingRunnable);
+            mFrameProcessingRunnable.setActive(true);
+            mFrameProcessingThread.start();
+        }
         try {
             mCameraManager.openCamera(mCameraId, mCameraDeviceCallback, null);
         } catch (CameraAccessException e) {
@@ -475,13 +545,31 @@ class Camera2 extends CameraViewImpl {
             return;
         }
         Size previewSize = chooseOptimalSize();
+        Timber.d("previewSize? %s", previewSize.toString());
+        if (mDetectorImageReader != null) {
+            mDetectorImageReader.close();
+        }
+        mDetectorImageReader = ImageReader.newInstance(previewSize.getWidth(),
+                previewSize.getHeight(), ImageFormat.YUV_420_888, 1);
+        mDetectorImageReader.setOnImageAvailableListener(mOnPreviewAvailableListener,
+                mBackgroundHandler);
+
         mPreview.setBufferSize(previewSize.getWidth(), previewSize.getHeight());
         Surface surface = mPreview.getSurface();
         try {
             mPreviewRequestBuilder = mCamera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             mPreviewRequestBuilder.addTarget(surface);
-            mCamera.createCaptureSession(Arrays.asList(surface, mImageReader.getSurface()),
-                    mSessionCallback, null);
+            ArrayList<Surface> captureSurfaces = new ArrayList<>();
+            captureSurfaces.add(surface);
+            captureSurfaces.add(mImageReader.getSurface());
+            if (mFrameProcessingRunnable != null) {
+                int detectorOrientation = getDetectorOrientation();
+                mFrameProcessingRunnable.setPreviewSpecs(previewSize.getWidth(),
+                        previewSize.getHeight(), detectorOrientation);
+                mPreviewRequestBuilder.addTarget(mDetectorImageReader.getSurface());
+                captureSurfaces.add(mDetectorImageReader.getSurface());
+            }
+            mCamera.createCaptureSession(captureSurfaces, mSessionCallback, null);
         } catch (CameraAccessException e) {
             throw new RuntimeException("Failed to start camera session");
         }
@@ -671,6 +759,59 @@ class Camera2 extends CameraViewImpl {
         }
     }
 
+    private byte[] convertYUV420888ToNV21(Image imgYUV420) {
+        // Converting YUV_420_888 data to NV21.
+        int width = imgYUV420.getWidth();
+        int height = imgYUV420.getHeight();
+
+        Image.Plane[] planes = imgYUV420.getPlanes();
+        byte[] result = new byte[width * height * 3 / 2];
+
+        int stride = planes[0].getRowStride();
+        if (stride == width) {
+            planes[0].getBuffer().get(result, 0, width);
+        } else {
+            for (int row = 0; row < height; row++) {
+                planes[0].getBuffer().position(row*stride);
+                planes[0].getBuffer().get(result, row*width, width);
+            }
+        }
+
+        stride = planes[1].getRowStride();
+        byte[] rowBytesCb = new byte[width/2];
+        byte[] rowBytesCr = new byte[width/2];
+
+        for (int row = 0; row < height/2; row++) {
+            int rowOffset = width*height + width/2 * row;
+            planes[1].getBuffer().position(row*stride);
+            planes[1].getBuffer().get(rowBytesCb, 0, width/2);
+            planes[2].getBuffer().position(row*stride);
+            planes[2].getBuffer().get(rowBytesCr, 0, width/2);
+
+            for (int col = 0; col < width/2; col++) {
+                result[rowOffset + col*2] = rowBytesCr[col];
+                result[rowOffset + col*2 + 1] = rowBytesCb[col];
+            }
+        }
+        return result;
+    }
+
+    private int getDetectorOrientation() {
+        Integer sensorOrientation = mCameraCharacteristics.get(
+                CameraCharacteristics.SENSOR_ORIENTATION);
+        if (sensorOrientation == null) return Frame.ROTATION_90;
+        int mult = mFacing == Constants.FACING_FRONT ? 1 : -1;
+        int angle = (sensorOrientation + mDisplayOrientation * mult + 360) % 360;
+        switch (angle) {
+            case 0:
+            case 360: return Frame.ROTATION_0;
+            case 90: return Frame.ROTATION_90;
+            case 180: return Frame.ROTATION_180;
+            case 270: return Frame.ROTATION_270;
+            default: return Frame.ROTATION_90;
+        }
+    }
+
     /**
      * A {@link CameraCaptureSession.CaptureCallback} for capturing a still picture.
      */
@@ -755,6 +896,44 @@ class Camera2 extends CameraViewImpl {
          */
         public abstract void onPrecaptureRequired();
 
+    }
+
+    private final ImageReader.OnImageAvailableListener mOnPreviewAvailableListener =
+            new ImageReader.OnImageAvailableListener() {
+                @Override
+                public void onImageAvailable(ImageReader reader) {
+                    Image image = reader.acquireNextImage();
+                    if (image != null) {
+                        int previewWidth = mDetectorImageReader.getWidth(),
+                                previewHeight = mDetectorImageReader.getHeight();
+                        if (image.getWidth() != previewWidth || image.getHeight() != previewHeight) {
+                            Timber.d("Skipping frame (%d x %d) while preview size is (%d x %d)",
+                                    image.getWidth(), image.getHeight(), previewWidth, previewHeight);
+                        } else {
+                            byte[] imageBytes = convertYUV420888ToNV21(image);
+                            ByteBuffer imageBuffer = ByteBuffer.wrap(imageBytes, previewWidth, previewHeight);
+                            mFrameProcessingRunnable.setNextFrame(imageBuffer);
+                        }
+                        image.close();
+                    }
+                }
+            };
+
+    private final FrameProcessingRunnable.OnFrameDataReleasedListener mOnFrameDataReleasedListener =
+            new FrameProcessingRunnable.OnFrameDataReleasedListener() {
+                @Override
+                public void onFrameDataReleased(ByteBuffer data) {
+                }
+            };
+
+    private byte[] quarterNV21(byte[] data, int iWidth, int iHeight) {
+        byte[] yuv = new byte[(iWidth * iHeight * 6) / 4];
+        for (int y = 0, i = 0; y < iHeight; y += 4) {
+            for (int x = 0; x < iWidth; x += 4) {
+                yuv[i++] = data[y * iWidth + x];
+            }
+        }
+        return yuv;
     }
 
 }
