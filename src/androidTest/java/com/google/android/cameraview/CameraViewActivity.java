@@ -21,6 +21,8 @@ import android.os.Bundle;
 
 import com.google.android.cameraview.test.R;
 
+import io.gometa.cameraview.CameraView;
+
 public class CameraViewActivity extends Activity {
 
     private CameraView mCameraView;

@@ -28,6 +28,8 @@ import android.support.test.runner.AndroidJUnit4;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import io.gometa.cameraview.AspectRatio;
+
 
 @RunWith(AndroidJUnit4.class)
 public class AspectRatioInstrumentationTest {

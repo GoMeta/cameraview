@@ -1,20 +1,6 @@
-/*
- * Copyright (C) 2016 The Android Open Source Project
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright (c) 2017 GoMeta. All right reserved.
 
-package com.google.android.cameraview;
+package io.gometa.cameraview;
 
 import android.app.Activity;
 import android.content.Context;
@@ -37,8 +23,6 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.Set;
-
-import timber.log.Timber;
 
 public class CameraView extends FrameLayout {
 
@@ -109,18 +93,18 @@ public class CameraView extends FrameLayout {
             mImpl = new Camera2Api23(mCallbacks, preview, context);
         }
         // Attributes
-        TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.CameraView, defStyleAttr,
-                R.style.Widget_CameraView);
-        mAdjustViewBounds = a.getBoolean(R.styleable.CameraView_android_adjustViewBounds, false);
-        setFacing(a.getInt(R.styleable.CameraView_facing, FACING_BACK));
-        String aspectRatio = a.getString(R.styleable.CameraView_aspectRatio);
+        TypedArray a = context.obtainStyledAttributes(attrs, com.google.android.cameraview.R.styleable.CameraView, defStyleAttr,
+                com.google.android.cameraview.R.style.Widget_CameraView);
+        mAdjustViewBounds = a.getBoolean(com.google.android.cameraview.R.styleable.CameraView_android_adjustViewBounds, false);
+        setFacing(a.getInt(com.google.android.cameraview.R.styleable.CameraView_facing, FACING_BACK));
+        String aspectRatio = a.getString(com.google.android.cameraview.R.styleable.CameraView_aspectRatio);
         if (aspectRatio != null) {
             setAspectRatio(AspectRatio.parse(aspectRatio));
         } else {
             setAspectRatio(Constants.DEFAULT_ASPECT_RATIO);
         }
-        setAutoFocus(a.getBoolean(R.styleable.CameraView_autoFocus, true));
-        setFlash(a.getInt(R.styleable.CameraView_flash, Constants.FLASH_AUTO));
+        setAutoFocus(a.getBoolean(com.google.android.cameraview.R.styleable.CameraView_autoFocus, true));
+        setFlash(a.getInt(com.google.android.cameraview.R.styleable.CameraView_flash, Constants.FLASH_AUTO));
         a.recycle();
         // Display orientation detector
         mDisplayOrientationDetector = new DisplayOrientationDetector(context) {

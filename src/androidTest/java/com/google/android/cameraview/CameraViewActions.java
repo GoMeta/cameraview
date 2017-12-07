@@ -25,6 +25,9 @@ import android.view.View;
 
 import org.hamcrest.Matcher;
 
+import io.gometa.cameraview.AspectRatio;
+import io.gometa.cameraview.CameraView;
+
 class CameraViewActions {
 
     static ViewAction setAspectRatio(@NonNull final AspectRatio ratio) {

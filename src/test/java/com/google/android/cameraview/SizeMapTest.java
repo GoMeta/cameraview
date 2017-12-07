@@ -21,6 +21,10 @@ import static org.junit.Assert.assertThat;
 
 import org.junit.Test;
 
+import io.gometa.cameraview.AspectRatio;
+import io.gometa.cameraview.Size;
+import io.gometa.cameraview.SizeMap;
+
 public class SizeMapTest {
 
     @Test

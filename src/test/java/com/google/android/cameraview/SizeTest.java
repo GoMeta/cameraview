@@ -23,6 +23,8 @@ import org.junit.Test;
 
 import java.util.HashSet;
 
+import io.gometa.cameraview.Size;
+
 public class SizeTest {
 
     @Test

@@ -30,11 +30,9 @@ import static com.google.android.cameraview.CameraViewMatchers.hasAspectRatio;
 
 import static junit.framework.Assert.assertFalse;
 
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 import android.graphics.Bitmap;
 import android.os.SystemClock;
@@ -63,6 +61,9 @@ import org.junit.runner.RunWith;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Set;
+
+import io.gometa.cameraview.AspectRatio;
+import io.gometa.cameraview.CameraView;
 
 @RunWith(AndroidJUnit4.class)
 public class CameraViewTest {
