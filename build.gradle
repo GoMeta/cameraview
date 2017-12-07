@@ -1,32 +1,45 @@
-// Top-level build file where you can add configuration options common to all sub-projects/modules.
+// Copyright (c) 2017 GoMeta. All right reserved.
 
-buildscript {
-    repositories {
-        jcenter()
+apply plugin: 'com.android.library'
+
+android {
+    compileSdkVersion build_versions.target_sdk
+    buildToolsVersion build_versions.build_tools
+
+    defaultConfig {
+        minSdkVersion 14
+        targetSdkVersion build_versions.target_sdk
+        testInstrumentationRunner 'android.support.test.runner.AndroidJUnitRunner'
     }
-    dependencies {
-        classpath 'com.android.tools.build:gradle:3.0.1'
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    sourceSets {
+        main.java.srcDirs += 'src/main/base'
+        main.java.srcDirs += 'src/main/api14'
+        main.java.srcDirs += 'src/main/api21'
+        main.java.srcDirs += 'src/main/api23'
+    }
 
-        // NOTE: Do not place your application dependencies here; they belong
-        // in the individual module build.gradle files
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
     }
 }
 
-allprojects {
-    repositories {
-        jcenter()
-        google()
-    }
-}
+dependencies {
+    implementation deps.support.annotations
+    implementation deps.support.v4
+    implementation deps.play.vision
+    implementation deps.timber
 
-task clean(type: Delete) {
-    delete rootProject.buildDir
-}
+    // Tests
+    testImplementation deps.junit
 
-ext {
-    buildToolsVersion = '26.0.2'
-    compileSdkVersion = 26
-    minSdkVersion = 14
-    targetSdkVersion = 26
-    supportLibraryVersion = '27.0.2'
+    // Android tests
+    androidTestImplementation 'com.android.support.test:runner:1.0.1'
+    androidTestImplementation deps.espresso.core
 }
