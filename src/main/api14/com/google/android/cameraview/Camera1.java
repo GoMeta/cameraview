@@ -319,7 +319,7 @@ class Camera1 extends CameraViewImpl {
     }
 
     @Override
-    void setDetector(@Nullable Detector detector) {
+    void setDetector(@Nullable Detector detector, @Nullable DetectorOptions options) {
         boolean requireCameraRestart = false;
         if (isCameraOpened()) {
             // Requires a restart of the camera

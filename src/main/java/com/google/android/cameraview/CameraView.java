@@ -411,7 +411,11 @@ public class CameraView extends FrameLayout {
      * @param detector The detector to use for each frame.
      */
     public void setDetector(@Nullable Detector detector) {
-        mImpl.setDetector(detector);
+        setDetector(detector, new DetectorOptions());
+    }
+
+    public void setDetector(@Nullable Detector detector, @Nullable DetectorOptions options) {
+        mImpl.setDetector(detector, options);
     }
 
     private class CallbackBridge implements CameraViewImpl.Callback {

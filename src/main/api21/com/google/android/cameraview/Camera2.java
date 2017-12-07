@@ -33,7 +33,6 @@ import android.media.ImageReader;
 import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.util.Log;
 import android.util.SparseIntArray;
 import android.view.Surface;
 
@@ -42,8 +41,7 @@ import com.google.android.gms.vision.Frame;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.LinkedList;
 import java.util.Set;
 import java.util.SortedSet;
 
@@ -96,7 +94,7 @@ class Camera2 extends CameraViewImpl {
 
         @Override
         public void onError(@NonNull CameraDevice camera, int error) {
-            Log.e(TAG, "onError: " + camera.getId() + " (" + error + ")");
+            Timber.e("onError: %s (%d)", camera.getId(), error);
             mCamera = null;
         }
 
@@ -117,15 +115,15 @@ class Camera2 extends CameraViewImpl {
                 mCaptureSession.setRepeatingRequest(mPreviewRequestBuilder.build(),
                         mCaptureCallback, null);
             } catch (CameraAccessException e) {
-                Log.e(TAG, "Failed to start camera preview because it couldn't access camera", e);
+                Timber.e(e, "Failed to start camera preview because it couldn't access camera");
             } catch (IllegalStateException e) {
-                Log.e(TAG, "Failed to start camera preview.", e);
+                Timber.e(e, "Failed to start camera preview.");
             }
         }
 
         @Override
         public void onConfigureFailed(@NonNull CameraCaptureSession session) {
-            Log.e(TAG, "Failed to configure capture session.");
+            Timber.e("Failed to configure capture session.");
         }
 
         @Override
@@ -137,8 +135,7 @@ class Camera2 extends CameraViewImpl {
 
     };
 
-    PictureCaptureCallback mCaptureCallback = new PictureCaptureCallback() {
-
+    private PictureCaptureCallback mCaptureCallback = new PictureCaptureCallback() {
         @Override
         public void onPrecaptureRequired() {
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER,
@@ -149,7 +146,7 @@ class Camera2 extends CameraViewImpl {
                 mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER,
                         CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_IDLE);
             } catch (CameraAccessException e) {
-                Log.e(TAG, "Failed to run precapture sequence.", e);
+                Timber.e(e, "Failed to run precapture sequence.");
             }
         }
 
@@ -160,22 +157,16 @@ class Camera2 extends CameraViewImpl {
 
     };
 
-    private final ImageReader.OnImageAvailableListener mOnImageAvailableListener
-            = new ImageReader.OnImageAvailableListener() {
-
-        @Override
-        public void onImageAvailable(ImageReader reader) {
-            try (Image image = reader.acquireNextImage()) {
-                Image.Plane[] planes = image.getPlanes();
-                if (planes.length > 0) {
-                    ByteBuffer buffer = planes[0].getBuffer();
-                    byte[] data = new byte[buffer.remaining()];
-                    buffer.get(data);
-                    mCallback.onPictureTaken(data);
-                }
+    private final ImageReader.OnImageAvailableListener mOnImageAvailableListener = reader -> {
+        try (Image image = reader.acquireNextImage()) {
+            Image.Plane[] planes = image.getPlanes();
+            if (planes.length > 0) {
+                ByteBuffer buffer = planes[0].getBuffer();
+                byte[] data = new byte[buffer.remaining()];
+                buffer.get(data);
+                mCallback.onPictureTaken(data);
             }
         }
-
     };
 
 
@@ -379,10 +370,10 @@ class Camera2 extends CameraViewImpl {
     }
 
     @Override
-    void setDetector(@Nullable Detector detector) {
+    void setDetector(@Nullable Detector detector, @Nullable DetectorOptions options) {
         if (detector != null) {
-            mFrameProcessingRunnable = new FrameProcessingRunnable(detector,
-                    mOnFrameDataReleasedListener);
+            mFrameProcessor.setDetectorOptions(options == null ? new DetectorOptions() : options);
+            mFrameProcessingRunnable = new FrameProcessingRunnable(detector, mFrameProcessor);
             if (mDetectorImageReader != null && mPreviewRequestBuilder != null) {
                 mPreviewRequestBuilder.addTarget(mDetectorImageReader.getSurface());
                 if (mCaptureSession != null) {
@@ -549,6 +540,7 @@ class Camera2 extends CameraViewImpl {
         if (mDetectorImageReader != null) {
             mDetectorImageReader.close();
         }
+        mFrameProcessor.warmUpCache(previewSize.getWidth(), previewSize.getHeight(), 2);
         mDetectorImageReader = ImageReader.newInstance(previewSize.getWidth(),
                 previewSize.getHeight(), ImageFormat.YUV_420_888, 1);
         mDetectorImageReader.setOnImageAvailableListener(mOnPreviewAvailableListener,
@@ -679,7 +671,7 @@ class Camera2 extends CameraViewImpl {
             mCaptureCallback.setState(PictureCaptureCallback.STATE_LOCKING);
             mCaptureSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback, null);
         } catch (CameraAccessException e) {
-            Log.e(TAG, "Failed to lock focus.", e);
+            Timber.e(e, "Failed to lock focus.");
         }
     }
 
@@ -739,7 +731,7 @@ class Camera2 extends CameraViewImpl {
                         }
                     }, null);
         } catch (CameraAccessException e) {
-            Log.e(TAG, "Cannot capture a still picture.", e);
+            Timber.e(e, "Cannot capture a still picture.");
         }
     }
 
@@ -760,54 +752,8 @@ class Camera2 extends CameraViewImpl {
                     null);
             mCaptureCallback.setState(PictureCaptureCallback.STATE_PREVIEW);
         } catch (CameraAccessException e) {
-            Log.e(TAG, "Failed to restart camera preview.", e);
+            Timber.e(e, "Failed to restart camera preview.");
         }
-    }
-
-    private boolean hasPrintedFrameInfo = false;
-    private byte[] convertYUV420888ToNV21(Image imgYUV420) {
-        // Converting YUV_420_888 data to NV21.
-        final boolean GRAYSCALE_DETECTOR = true;
-
-        int width = imgYUV420.getWidth();
-        int height = imgYUV420.getHeight();
-
-        Image.Plane[] planes = imgYUV420.getPlanes();
-        int resultSize = width * height;
-        if (!GRAYSCALE_DETECTOR) {
-            resultSize = resultSize * 3 / 2;
-        }
-        byte[] result = new byte[resultSize];
-
-        int stride = planes[0].getRowStride();
-        if (!hasPrintedFrameInfo) {
-            Timber.d("size? %d x %d, preview? %d x %d, stride? %d, cropRect? %s", width,
-                    imgYUV420.getHeight(), mPreview.getWidth(), mPreview.getHeight(), stride,
-                    imgYUV420.getCropRect().toString());
-            hasPrintedFrameInfo = true;
-        }
-        if (stride == width) {
-            planes[0].getBuffer().get(result, 0, width);
-        } else {
-            for (int row = 0; row < height; row++) {
-                planes[0].getBuffer().position(row*stride);
-                planes[0].getBuffer().get(result, row*width, width);
-            }
-        }
-
-        if (!GRAYSCALE_DETECTOR) {
-            stride = planes[1].getRowStride();
-            for (int row = 0; row < height/2; row++) {
-                int rowOffset = width*height + width/2 * row;
-                int planeOffset = row * stride;
-                for (int col = 0; col < width/2; col++) {
-                    result[rowOffset + col*2] = planes[2].getBuffer().get(planeOffset + col);
-                    result[rowOffset + col*2 + 1] = planes[1].getBuffer().get(planeOffset + col);
-                }
-            }
-        }
-
-        return result;
     }
 
     private int getDetectorOrientation() {
@@ -918,36 +864,112 @@ class Camera2 extends CameraViewImpl {
                 public void onImageAvailable(ImageReader reader) {
                     Image image = reader.acquireNextImage();
                     if (image != null) {
-                        int previewWidth = mDetectorImageReader.getWidth(),
-                                previewHeight = mDetectorImageReader.getHeight();
-                        if (image.getWidth() != previewWidth || image.getHeight() != previewHeight) {
-                            Timber.d("Skipping frame (%d x %d) while preview size is (%d x %d)",
-                                    image.getWidth(), image.getHeight(), previewWidth, previewHeight);
-                        } else {
-                            byte[] imageBytes = convertYUV420888ToNV21(image);
-                            ByteBuffer imageBuffer = ByteBuffer.wrap(imageBytes, previewWidth, previewHeight);
-                            mFrameProcessingRunnable.setNextFrame(imageBuffer);
-                        }
+                        ByteBuffer buffer = mFrameProcessor.getBuffer(image);
                         image.close();
+                        if (buffer == null) {
+                            Timber.d("Skipping frame, frame size doesn't match preview");
+                        } else {
+                            buffer = mFrameProcessingRunnable.setNextFrame(buffer);
+                            if (buffer != null) {
+                                mFrameProcessor.onFrameDataReleased(buffer);
+                            }
+                        }
                     }
                 }
             };
 
-    private final FrameProcessingRunnable.OnFrameDataReleasedListener mOnFrameDataReleasedListener =
-            new FrameProcessingRunnable.OnFrameDataReleasedListener() {
-                @Override
-                public void onFrameDataReleased(ByteBuffer data) {
-                }
-            };
+    private final FrameProcessor mFrameProcessor = new FrameProcessor();
 
-    private byte[] quarterNV21(byte[] data, int iWidth, int iHeight) {
-        byte[] yuv = new byte[(iWidth * iHeight * 6) / 4];
-        for (int y = 0, i = 0; y < iHeight; y += 4) {
-            for (int x = 0; x < iWidth; x += 4) {
-                yuv[i++] = data[y * iWidth + x];
+    private class FrameProcessor implements FrameProcessingRunnable.OnFrameDataReleasedListener {
+
+        @NonNull
+        private DetectorOptions mDetectorOptions = new DetectorOptions();
+
+        private int mBufferSize = 0;
+        private final LinkedList<ByteBuffer> mBufferCache = new LinkedList<>();
+
+        synchronized void setDetectorOptions(@NonNull DetectorOptions options) {
+            mDetectorOptions = options;
+        }
+
+        void warmUpCache(int frameWidth, int frameHeight, int numFrames) {
+            synchronized (mBufferCache) {
+                mBufferSize = getBufferSize(frameWidth, frameHeight);
+                Timber.d("Pre-allocating %d buffers of size %d bytes", numFrames, mBufferSize);
+                mBufferCache.clear();
+                for (int i = 0; i < numFrames; ++i) {
+                    mBufferCache.add(ByteBuffer.allocate(mBufferSize));
+                }
             }
         }
-        return yuv;
+
+        @Nullable
+        synchronized ByteBuffer getBuffer(@NonNull Image imgYUV420) {
+            ByteBuffer buffer = consumeBuffer(imgYUV420);
+            if (buffer == null) {
+                return null;
+            }
+            // Converting YUV_420_888 data to NV21.
+            int width = imgYUV420.getWidth();
+            int height = imgYUV420.getHeight();
+
+            Image.Plane[] planes = imgYUV420.getPlanes();
+            int stride = planes[0].getRowStride();
+            byte[] result = buffer.array();
+            if (stride == width) {
+                planes[0].getBuffer().get(result, 0, width);
+            } else {
+                for (int row = 0; row < height; row++) {
+                    planes[0].getBuffer().position(row*stride);
+                    planes[0].getBuffer().get(result, row*width, width);
+                }
+            }
+
+            if (!mDetectorOptions.getUseGrayScaleFrames()) {
+                stride = planes[1].getRowStride();
+                for (int row = 0; row < height/2; row++) {
+                    int rowOffset = width*height + width/2 * row;
+                    int planeOffset = row * stride;
+                    for (int col = 0; col < width/2; col++) {
+                        result[rowOffset + col*2] = planes[2].getBuffer().get(planeOffset + col);
+                        result[rowOffset + col*2 + 1] = planes[1].getBuffer().get(planeOffset + col);
+                    }
+                }
+            }
+
+            return buffer;
+        }
+
+        @Override
+        public void onFrameDataReleased(ByteBuffer data) {
+            synchronized (mBufferCache) {
+                mBufferCache.add(data);
+            }
+        }
+
+        @Nullable
+        private ByteBuffer consumeBuffer(@NonNull Image img) {
+            int bufferSize = getBufferSize(img.getWidth(), img.getHeight());
+            synchronized (mBufferCache) {
+                if (mBufferSize != bufferSize) {
+                    return null;
+                }
+                if (mBufferCache.isEmpty()) {
+                    Timber.d("Allocating %d byte buffer", bufferSize);
+                    return ByteBuffer.allocate(bufferSize);
+                } else {
+                    return mBufferCache.remove(0);
+                }
+            }
+        }
+
+        private int getBufferSize(int width, int height) {
+            if (mDetectorOptions.getUseGrayScaleFrames()) {
+                return width * height;
+            } else {
+                return width * height * 2 / 3;
+            }
+        }
     }
 
 }

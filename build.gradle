@@ -1,6 +1,9 @@
 // Copyright (c) 2017 GoMeta. All right reserved.
 
 apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+apply plugin: 'kotlin-android-extensions'
+apply plugin: 'kotlin-kapt'
 
 android {
     compileSdkVersion build_versions.target_sdk
@@ -31,6 +34,7 @@ android {
 }
 
 dependencies {
+    implementation deps.kotlin.stdlib
     implementation deps.support.annotations
     implementation deps.support.v4
     implementation deps.play.vision

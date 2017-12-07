@@ -72,7 +72,7 @@ abstract class CameraViewImpl {
 
     abstract void setDisplayOrientation(int displayOrientation);
 
-    abstract void setDetector(@Nullable Detector detector);
+    abstract void setDetector(@Nullable Detector detector, @Nullable DetectorOptions options);
 
     interface Callback {
 
