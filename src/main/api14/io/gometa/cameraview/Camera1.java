@@ -11,10 +11,6 @@ import android.support.annotation.Nullable;
 import android.support.v4.util.SparseArrayCompat;
 import android.view.SurfaceHolder;
 
-import com.google.android.cameraview.CameraViewImpl;
-import com.google.android.cameraview.Constants;
-import com.google.android.cameraview.PreviewImpl;
-import com.google.android.cameraview.SizeMap;
 import com.google.android.gms.vision.Detector;
 
 import java.io.IOException;

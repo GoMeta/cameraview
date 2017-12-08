@@ -7,10 +7,6 @@ import android.content.Context;
 import android.graphics.ImageFormat;
 import android.hardware.camera2.params.StreamConfigurationMap;
 
-import com.google.android.cameraview.PreviewImpl;
-import com.google.android.cameraview.SizeMap;
-
-
 @TargetApi(23)
 class Camera2Api23 extends Camera2 {
 
