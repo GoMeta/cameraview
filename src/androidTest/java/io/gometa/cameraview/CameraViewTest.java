@@ -1,20 +1,6 @@
-/*
- * Copyright (C) 2016 The Android Open Source Project
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright (c) 2018 GoMeta. All right reserved.
 
-package com.google.android.cameraview;
+package io.gometa.cameraview;
 
 import static android.support.test.espresso.Espresso.onView;
 import static android.support.test.espresso.Espresso.registerIdlingResources;
@@ -23,10 +9,6 @@ import static android.support.test.espresso.assertion.ViewAssertions.matches;
 import static android.support.test.espresso.matcher.ViewMatchers.assertThat;
 import static android.support.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static android.support.test.espresso.matcher.ViewMatchers.withId;
-
-import static com.google.android.cameraview.AspectRatioIsCloseTo.closeToOrInverse;
-import static com.google.android.cameraview.CameraViewActions.setAspectRatio;
-import static com.google.android.cameraview.CameraViewMatchers.hasAspectRatio;
 
 import static junit.framework.Assert.assertFalse;
 
@@ -48,8 +30,9 @@ import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 
-import com.google.android.cameraview.test.R;
+import io.gometa.cameraview.cameraview.test.R;
 
+import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
 import org.hamcrest.core.IsAnything;
 import org.junit.After;
@@ -61,9 +44,6 @@ import org.junit.runner.RunWith;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Set;
-
-import io.gometa.cameraview.AspectRatio;
-import io.gometa.cameraview.CameraView;
 
 @RunWith(AndroidJUnit4.class)
 public class CameraViewTest {
@@ -117,8 +97,8 @@ public class CameraViewTest {
         final Set<AspectRatio> ratios = cameraView.getSupportedAspectRatios();
         for (AspectRatio ratio : ratios) {
             onView(withId(R.id.camera))
-                    .perform(setAspectRatio(ratio))
-                    .check(matches(hasAspectRatio(ratio)));
+                    .perform(CameraViewActions.setAspectRatio(ratio))
+                    .check(matches(CameraViewMatchers.hasAspectRatio(ratio)));
         }
     }
 
@@ -148,7 +128,8 @@ public class CameraViewTest {
                         CameraView cameraView = (CameraView) view;
                         AspectRatio cameraRatio = cameraView.getAspectRatio();
                         AspectRatio viewRatio = AspectRatio.of(view.getWidth(), view.getHeight());
-                        assertThat(cameraRatio, is(closeToOrInverse(viewRatio)));
+                        assertThat(cameraRatio, CoreMatchers
+                                .is(AspectRatioIsCloseTo.closeToOrInverse(viewRatio)));
                     }
                 });
     }
@@ -168,7 +149,8 @@ public class CameraViewTest {
                         assert cameraRatio != null;
                         AspectRatio textureRatio = AspectRatio.of(
                                 preview.getWidth(), preview.getHeight());
-                        assertThat(textureRatio, is(closeToOrInverse(cameraRatio)));
+                        assertThat(textureRatio, CoreMatchers
+                                .is(AspectRatioIsCloseTo.closeToOrInverse(cameraRatio)));
                     }
                 });
     }
