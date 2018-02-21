@@ -1,6 +1,6 @@
-// Copyright (c) 2017 GoMeta. All right reserved.
+// Copyright (c) 2018 GoMeta. All right reserved.
 
-package io.gometa.cameraview;
+package io.gometa.support.cameraview;
 
 import android.app.Activity;
 import android.content.Context;
@@ -23,6 +23,8 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.Set;
+
+import io.gometa.support.cameraview.R;
 
 public class CameraView extends FrameLayout {
 

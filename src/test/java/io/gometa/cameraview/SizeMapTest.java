@@ -7,9 +7,9 @@ import static org.junit.Assert.assertThat;
 
 import org.junit.Test;
 
-import io.gometa.cameraview.AspectRatio;
-import io.gometa.cameraview.Size;
-import io.gometa.cameraview.SizeMap;
+import io.gometa.support.cameraview.AspectRatio;
+import io.gometa.support.cameraview.Size;
+import io.gometa.support.cameraview.SizeMap;
 
 public class SizeMapTest {
 

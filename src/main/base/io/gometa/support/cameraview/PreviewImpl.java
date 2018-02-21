@@ -1,6 +1,6 @@
-// Copyright (c) 2017 GoMeta. All right reserved.
+// Copyright (c) 2018 GoMeta. All right reserved.
 
-package io.gometa.cameraview;
+package io.gometa.support.cameraview;
 
 import android.view.Surface;
 import android.view.SurfaceHolder;

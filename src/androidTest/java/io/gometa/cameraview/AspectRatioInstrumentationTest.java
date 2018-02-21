@@ -14,7 +14,7 @@ import android.support.test.runner.AndroidJUnit4;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import io.gometa.cameraview.AspectRatio;
+import io.gometa.support.cameraview.AspectRatio;
 
 
 @RunWith(AndroidJUnit4.class)

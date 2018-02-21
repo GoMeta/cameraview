@@ -1,6 +1,6 @@
 // Copyright (c) 2017 GoMeta. All right reserved.
 
-package io.gometa.cameraview
+package io.gometa.support.cameraview
 
 /**
  *

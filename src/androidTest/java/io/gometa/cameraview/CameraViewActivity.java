@@ -7,7 +7,7 @@ import android.os.Bundle;
 
 import io.gometa.cameraview.cameraview.test.R;
 
-import io.gometa.cameraview.CameraView;
+import io.gometa.support.cameraview.CameraView;
 
 public class CameraViewActivity extends Activity {
 

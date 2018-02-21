@@ -9,8 +9,8 @@ import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 
-import io.gometa.cameraview.AspectRatio;
-import io.gometa.cameraview.CameraView;
+import io.gometa.support.cameraview.AspectRatio;
+import io.gometa.support.cameraview.CameraView;
 
 class CameraViewMatchers {
 

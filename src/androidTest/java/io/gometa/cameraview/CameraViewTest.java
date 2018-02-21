@@ -31,6 +31,8 @@ import android.view.View;
 import android.view.ViewGroup;
 
 import io.gometa.cameraview.cameraview.test.R;
+import io.gometa.support.cameraview.AspectRatio;
+import io.gometa.support.cameraview.CameraView;
 
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;

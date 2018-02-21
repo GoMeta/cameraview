@@ -1,6 +1,6 @@
 // Copyright (c) 2017 GoMeta. All right reserved.
 
-package io.gometa.cameraview;
+package io.gometa.support.cameraview;
 
 import android.annotation.TargetApi;
 import android.content.Context;
@@ -10,6 +10,8 @@ import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
+
+import io.gometa.support.cameraview.R;
 
 @TargetApi(14)
 class TextureViewPreview extends PreviewImpl {

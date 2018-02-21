@@ -9,6 +9,8 @@ import org.hamcrest.Factory;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 
+import io.gometa.support.cameraview.AspectRatio;
+
 public class AspectRatioIsCloseTo extends TypeSafeMatcher<AspectRatio> {
 
     private final AspectRatio mRatio;

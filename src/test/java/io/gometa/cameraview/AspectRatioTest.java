@@ -9,8 +9,8 @@ import org.junit.Test;
 
 import java.util.HashSet;
 
-import io.gometa.cameraview.AspectRatio;
-import io.gometa.cameraview.Size;
+import io.gometa.support.cameraview.AspectRatio;
+import io.gometa.support.cameraview.Size;
 
 public class AspectRatioTest {
 
