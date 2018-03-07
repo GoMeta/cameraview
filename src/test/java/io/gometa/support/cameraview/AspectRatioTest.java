@@ -1,6 +1,6 @@
 // Copyright (c) 2018 GoMeta. All right reserved.
 
-package io.gometa.cameraview;
+package io.gometa.support.cameraview;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
