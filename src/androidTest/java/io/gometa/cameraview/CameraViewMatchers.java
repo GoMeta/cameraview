@@ -2,7 +2,7 @@
 
 package io.gometa.cameraview;
 
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 import android.view.View;
 
 import org.hamcrest.Description;

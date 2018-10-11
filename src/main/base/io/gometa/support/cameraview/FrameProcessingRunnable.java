@@ -5,7 +5,7 @@ package io.gometa.support.cameraview;
 import android.annotation.SuppressLint;
 import android.graphics.ImageFormat;
 import android.os.SystemClock;
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 
 import com.google.android.gms.vision.Detector;
 import com.google.android.gms.vision.Frame;

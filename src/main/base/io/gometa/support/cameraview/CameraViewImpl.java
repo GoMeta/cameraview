@@ -2,7 +2,7 @@
 
 package io.gometa.support.cameraview;
 
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 import android.view.View;
 
 import com.google.android.gms.vision.Detector;

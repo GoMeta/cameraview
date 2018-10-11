@@ -6,9 +6,9 @@ import android.annotation.SuppressLint;
 import android.graphics.ImageFormat;
 import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v4.util.SparseArrayCompat;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.collection.SparseArrayCompat;
 import android.view.SurfaceHolder;
 
 import com.google.android.gms.vision.Detector;
